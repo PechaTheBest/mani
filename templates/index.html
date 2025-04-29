@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Планирование семейного бюджета</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        .savings-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .savings-actions input {
+            flex: 1;
+            padding: 8px;
+        }
+        
+        .savings-actions button {
+            padding: 8px 12px;
+        }
+        
+        .savings-tab {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .tab-btn.active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .savings-settings {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- Левая колонка с формами и статистикой -->
+            <div class="left-column">
+                <h1>Планирование семейного бюджета</h1>
+                
+                <!-- Форма добавления операций -->
+                <div class="form-container">
+                    <form method="POST" action="/add_transaction" id="transaction-form">
+                        <div class="form-group">
+                            <label for="income">Доход:</label>
+                            <input type="number" id="income" name="income" step="0.01" placeholder="0.00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="expense">Расход:</label>
+                            <input type="number" id="expense" name="expense" step="0.01" placeholder="0.00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="category">Категория:</label>
+                            <select id="category" name="category">
+                                <option value="products">Продукты питания</option>
+                                <option value="food_restaurants">Кафе/рестораны</option>
+                                <option value="pharmacy">Аптека/медицина</option>
+                                <option value="pets">Питомцы/ветеринарка</option>
+                                <option value="transport">Транспорт/ТС</option>
+                                <option value="travel">Путешествия/отдых</option>
+                                <option value="marketplace">Онлайн-покупки</option>
+                                <option value="leisure">Развлечения/досуг</option>
+                                <option value="utilities">ЖКУ/связь</option>
+                                <option value="savings">Накопления</option>
+                                <option value="other">Прочие расходы</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit">Добавить операцию</button>
+                    </form>
+                </div>
+
+                <!-- Блок статистики -->
+                <div class="stats-container">
+                    <h2>Финансовая сводка</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Общий доход</h3>
+                            <p>{{ "%.2f"|format(total_income) }} ₽</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Общий расход</h3>
+                            <p>{{ "%.2f"|format(total_expense) }} ₽</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Текущий баланс</h3>
+                            <p>{{ "%.2f"|format(balance) }} ₽</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Круговая диаграмма с градиентами -->
+                <div class="chart-container">
+                    <h2>Распределение расходов</h2>
+                    <div class="chart-wrapper">
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Блок накоплений -->
+                <div class="savings-card">
+                    <h3>Накопления</h3>
+                    <div class="savings-progress">
+                        <div class="progress-bar" style="width: {{ savings_percentage }}%"></div>
+                    </div>
+                    <p>Отложено: {{ "%.2f"|format(savings_amount) }} ₽ из {{ "%.2f"|format(savings_goal) }} ₽</p>
+                    
+                    <div class="savings-tab">
+                        <button class="tab-btn active" data-tab="add">Пополнить</button>
+                        <button class="tab-btn" data-tab="withdraw">Снять</button>
+                        <button class="tab-btn" data-tab="settings">Настройки</button>
+                    </div>
+                    
+                    <div id="add-tab" class="tab-content active">
+                        <form method="POST" action="/add_savings">
+                            <input type="hidden" name="operation_type" value="expense">
+                            <div class="savings-actions">
+                                <input type="number" name="amount" step="100" placeholder="Сумма" required>
+                                <button type="submit">Добавить</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div id="withdraw-tab" class="tab-content">
+                        <form method="POST" action="/add_savings">
+                            <input type="hidden" name="operation_type" value="income">
+                            <div class="savings-actions">
+                                <input type="number" name="amount" step="100" placeholder="Сумма" required>
+                                <button type="submit">Снять</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div id="settings-tab" class="tab-content">
+                        <div class="savings-settings">
+                            <form method="POST" action="/update_savings_goal">
+                                <div class="savings-actions">
+                                    <input type="number" name="goal" step="1000" placeholder="Новая цель" value="{{ savings_goal }}" required>
+                                    <button type="submit">Обновить цель</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка с историей операций -->
+            <div class="right-column">
+                <div class="transactions-container">
+                    <h2>История операций</h2>
+                    {% if transactions %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Операция</th>
+                                <th>Сумма</th>
+                                <th>Категория</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction['date'].split(' ')[0] }}</td>
+                                <td>
+                                    {% if transaction['income'] > 0 %}
+                                        {% if transaction['category'] == 'savings' %}
+                                        Снятие с накоплений
+                                        {% else %}
+                                        Доход
+                                        {% endif %}
+                                    {% else %}
+                                        {% if transaction['category'] == 'savings' %}
+                                        Пополнение накоплений
+                                        {% else %}
+                                        Расход
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td class="{{ 'income' if transaction['income'] > 0 else 'expense' }}">
+                                    {{ "%.2f"|format(transaction['income'] if transaction['income'] > 0 else transaction['expense']) }} ₽
+                                </td>
+                                <td>
+                                    {% if transaction['category'] == 'products' %}Продукты
+                                    {% elif transaction['category'] == 'food_restaurants' %}Кафе
+                                    {% elif transaction['category'] == 'pharmacy' %}Аптека
+                                    {% elif transaction['category'] == 'pets' %}Питомцы
+                                    {% elif transaction['category'] == 'transport' %}Транспорт
+                                    {% elif transaction['category'] == 'travel' %}Путешествия
+                                    {% elif transaction['category'] == 'marketplace' %}Онлайн-покупки
+                                    {% elif transaction['category'] == 'leisure' %}Развлечения
+                                    {% elif transaction['category'] == 'utilities' %}ЖКУ
+                                    {% elif transaction['category'] == 'savings' %}Накопления
+                                    {% else %}Прочие
+                                    {% endif %}
+                                </td>
+                                <td class="actions">
+                                    <a href="{{ url_for('edit_transaction', id=transaction['id']) }}" class="edit-btn">✏️</a>
+                                    <a href="{{ url_for('delete_transaction', id=transaction['id']) }}" class="delete-btn" onclick="return confirm('Удалить эту операцию?')">🗑️</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p>Пока нет операций. Добавьте первую!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработка переключения вкладок накоплений
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Убираем активный класс со всех кнопок
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    // Добавляем активный класс нажатой кнопке
+                    this.classList.add('active');
+                    
+                    // Скрываем все табы
+                    document.querySelectorAll('.tab-content').forEach(tab => {
+                        tab.classList.remove('active');
+                    });
+                    
+                    // Показываем нужный таб
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId + '-tab').classList.add('active');
+                });
+            });
+            
+            // Валидация формы транзакций - чтобы не было пустых значений
+            const transactionForm = document.getElementById('transaction-form');
+            if (transactionForm) {
+                transactionForm.addEventListener('submit', function(e) {
+                    const income = parseFloat(document.getElementById('income').value) || 0;
+                    const expense = parseFloat(document.getElementById('expense').value) || 0;
+                    
+                    if (income === 0 && expense === 0) {
+                        e.preventDefault();
+                        alert('Пожалуйста, введите сумму дохода или расхода.');
+                    }
+                });
+            }
+            
+            const ctx = document.getElementById('expenseChart');
+            
+            if (!ctx) {
+                console.error('Элемент диаграммы не найден');
+                return;
+            }
+            
+            const amounts = {{ amounts|tojson|safe }};
+            const hasData = amounts && amounts.length > 0 && amounts.some(amount => amount > 0);
+            
+            if (!hasData) {
+                const container = document.querySelector('.chart-wrapper');
+                if (container) {
+                    container.innerHTML = '<p class="no-data">Нет данных для отображения диаграммы</p>';
+                }
+                return;
+            }
+
+            // Функция для осветления цвета
+            function lightenColor(color, percent) {
+                const num = parseInt(color.replace('#', ''), 16);
+                const amt = Math.round(2.55 * percent);
+                const R = (num >> 16) + amt;
+                const G = (num >> 8 & 0x00FF) + amt;
+                const B = (num & 0x0000FF) + amt;
+                
+                return '#' + (
+                    0x1000000 +
+                    (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+                    (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+                    (B < 255 ? (B < 1 ? 0 : B) : 255)
+                ).toString(16).slice(1);
+            }
+
+            // Яркие и насыщенные цвета для категорий с большим разнообразием
+            const baseColors = [
+                '#FF1744', // Продукты (ярко-красный)
+                '#2979FF', // Кафе (насыщенный синий)
+                '#FFEA00', // Аптека (яркий желтый)
+                '#00E676', // Питомцы (яркий зеленый)
+                '#D500F9', // Транспорт (яркий фиолетовый)
+                '#FF9100', // Путешествия (насыщенный оранжевый)
+                '#00B0FF', // Онлайн-покупки (голубой)
+                '#F50057', // Развлечения (фуксия)
+                '#651FFF', // ЖКУ (индиго)
+                '#00C853', // Накопления (изумрудный)
+                '#FF3D00'  // Прочие (алый)
+            ];
+
+            // Функция для создания более выраженных градиентов
+            function createGradients(chartContext, colors) {
+                const gradients = [];
+                const width = 200;
+                const height = 200;
+                
+                colors.forEach(color => {
+                    const gradient = chartContext.createLinearGradient(0, 0, width, height);
+                    gradient.addColorStop(0, color);
+                    gradient.addColorStop(0.5, lightenColor(color, 20)); // Средняя точка градиента
+                    gradient.addColorStop(1, lightenColor(color, 40));   // Более яркий конечный цвет
+                    gradients.push(gradient);
+                });
+                
+                return gradients;
+            }
+
+            // Создаем градиенты
+            const backgroundColors = createGradients(ctx.getContext('2d'), baseColors);
+            
+            try {
+                new Chart(ctx.getContext('2d'), {
+                    type: 'pie',
+                    data: {
+                        labels: {{ categories|tojson|safe }},
+                        datasets: [{
+                            data: amounts,
+                            backgroundColor: backgroundColors.slice(0, amounts.length),
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 16,
+                                    padding: 16,
+                                    font: {
+                                        size: 12,
+                                        weight: 'bold' // Жирный шрифт для лучшей читаемости
+                                    },
+                                    usePointStyle: true,
+                                    generateLabels: function(chart) {
+                                        const data = chart.data;
+                                        return data.labels.map((label, i) => ({
+                                            text: label.length > 15 ? label.substring(0, 12) + '...' : label,
+                                            fillStyle: baseColors[i], // Используем базовые цвета для легенды
+                                            strokeStyle: '#ffffff', // Белая обводка легенды
+                                            lineWidth: 2, // Толщина обводки
+                                            fontColor: '#333',
+                                            hidden: false,
+                                            index: i
+                                        }));
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.formattedValue || '';
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((context.raw / total) * 100);
+                                        return `${label}: ${value} ₽ (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        animation: {
+                            animateScale: true,
+                            animateRotate: true,
+                            duration: 1500 // Увеличиваем длительность анимации для лучшего эффекта
+                        },
+                        cutout: '55%', // Немного уменьшаем вырез для более толстого пирога
+                        elements: {
+                            arc: {
+                                borderWidth: 3, // Увеличиваем ширину границы для большей выразительности
+                                borderColor: '#ffffff' // Белые границы секторов
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Ошибка при создании диаграммы:', e);
+                document.querySelector('.chart-wrapper').innerHTML = 
+                    '<p class="no-data">Ошибка при отображении диаграммы</p>';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование операции</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .edit-container {
+            max-width: 600px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .cancel-btn {
+            display: inline-block;
+            padding: 12px 20px;
+            background: #f44336;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            text-align: center;
+            flex: 1;
+        }
+        
+        .cancel-btn:hover {
+            background: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container edit-container">
+        <h1>Редактирование операции от {{ transaction['date'].split(' ')[0] }}</h1>
+        
+        <div class="form-container">
+            <form method="POST" action="{{ url_for('edit_transaction', id=transaction['id']) }}">
+                <div class="form-group">
+                    <label for="type">Тип операции:</label>
+                    <select id="type" name="type" class="operation-type">
+                        <option value="income" {% if transaction['income'] > 0 %}selected{% endif %}>Доход</option>
+                        <option value="expense" {% if transaction['expense'] > 0 %}selected{% endif %}>Расход</option>
+                    </select>
+                </div>
+                
+                <div class="form-group amount-field" id="income-field" {% if transaction['expense'] > 0 %}style="display: none;"{% endif %}>
+                    <label for="income">Сумма дохода:</label>
+                    <input type="number" id="income" name="income" step="0.01" min="0"
+                           value="{{ "%.2f"|format(transaction['income']) if transaction['income'] else '0.00' }}">
+                </div>
+                
+                <div class="form-group amount-field" id="expense-field" {% if transaction['income'] > 0 %}style="display: none;"{% endif %}>
+                    <label for="expense">Сумма расхода:</label>
+                    <input type="number" id="expense" name="expense" step="0.01" min="0"
+                           value="{{ "%.2f"|format(transaction['expense']) if transaction['expense'] else '0.00' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="category">Категория:</label>
+                    <select id="category" name="category">
+                        <option value="products" {% if transaction['category'] == 'products' %}selected{% endif %}>Продукты питания</option>
+                        <option value="food_restaurants" {% if transaction['category'] == 'food_restaurants' %}selected{% endif %}>Кафе/рестораны</option>
+                        <option value="pharmacy" {% if transaction['category'] == 'pharmacy' %}selected{% endif %}>Аптека/медицина</option>
+                        <option value="pets" {% if transaction['category'] == 'pets' %}selected{% endif %}>Питомцы/ветеринарка</option>
+                        <option value="transport" {% if transaction['category'] == 'transport' %}selected{% endif %}>Транспорт/ТС</option>
+                        <option value="travel" {% if transaction['category'] == 'travel' %}selected{% endif %}>Путешествия/отдых</option>
+                        <option value="marketplace" {% if transaction['category'] == 'marketplace' %}selected{% endif %}>Онлайн-покупки</option>
+                        <option value="leisure" {% if transaction['category'] == 'leisure' %}selected{% endif %}>Развлечения/досуг</option>
+                        <option value="utilities" {% if transaction['category'] == 'utilities' %}selected{% endif %}>ЖКУ/связь</option>
+                        <option value="savings" {% if transaction['category'] == 'savings' %}selected{% endif %}>Накопления</option>
+                        <option value="other" {% if transaction['category'] == 'other' %}selected{% endif %}>Прочие расходы</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="date">Дата:</label>
+                    <input type="date" id="date" name="date" value="{{ transaction['date'].split(' ')[0] }}">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="save-btn">Сохранить изменения</button>
+                    <a href="{{ url_for('home') }}" class="cancel-btn">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Переключение между доходом и расходом
+        document.getElementById('type').addEventListener('change', function() {
+            const type = this.value;
+            document.getElementById('income-field').style.display = type === 'income' ? 'block' : 'none';
+            document.getElementById('expense-field').style.display = type === 'expense' ? 'block' : 'none';
+        });
+        
+        // Проверка формы перед отправкой
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const type = document.getElementById('type').value;
+            const amountField = type === 'income' ? 'income' : 'expense';
+            const amount = parseFloat(document.getElementById(amountField).value);
+            
+            if (isNaN(amount) || amount <= 0) {
+                alert('Пожалуйста, введите корректную сумму');
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
